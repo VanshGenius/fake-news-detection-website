@@ -6,6 +6,8 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
+//new backend updated code
+
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -26,35 +28,36 @@ mongoose.connect(process.env.MONGO_URI)
 
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true },
   password: { type: String, required: true }
 });
 
+const DetailsSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  email: { type: String, required: true },
+  number: { type: String, required: true },
+  message: { type: String, required: true }
+}, { timestamps: true });
+
+const Details = mongoose.model("Details", DetailsSchema);
+
 const User = mongoose.model('User', UserSchema);
 
-// Register User
-app.post('/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await User.findOne({ username });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
-    const user = new User({ username, password: hashedPassword });
-    await user.save();
-    res.status(201).json({ message: 'User registered successfully!' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error registering user', error });
-  }
-});
+
 
 // Sign Up User
 app.post('/signup', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
+    if(!username || !email || !password) return res.status(400).json({ message: 'All fields are required' });
     const existingUser = await User.findOne({ username });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser) return res.status(400).json({ message: 'User name already exists' });
+    
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ message: 'Email already exists' });
     
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword });
+    const user = new User({ username, email, password: hashedPassword });
     await user.save();
     
     res.status(201).json({ message: 'User signed up successfully!' });
@@ -63,12 +66,31 @@ app.post('/signup', async (req, res) => {
   }
 });
 
+
+// details
+app.post('/details/form', async (req, res) => {
+  try {
+    const { username, email , number , message } = req.body;
+    if(!username || !email || !number || !message) return res.status(400).json({ message: 'All fields are required' });
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) return res.status(400).json({ message: 'Login first' });
+    //send email
+    const details = new Details({ username, email , number , message });
+    await details.save();
+    
+    res.status(201).json({ message: 'Email sent successfully!' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending email', error });
+  }
+});
+
 // Login User
 app.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const user = await User.findOne({ username });
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    const { email, password } = req.body;
+    if(!email || !password) return res.status(400).json({ message: 'All fields are required' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(401).json({ message: 'Invalid credentials or Login first' });
     
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
